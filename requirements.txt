@@ -5,3 +5,4 @@ python-dateutil
 pytesseract
 pdf2image
 pillow
+tesserocr
