@@ -4,18 +4,19 @@ import pandas as pd
 import re
 import streamlit as st
 import pytesseract
+import tesserocr
 from pdf2image import convert_from_bytes
 from PIL import Image
 from dateutil import parser
 
 # Streamlit App Title
-st.title("Receipt Data Extractor with Tesseract OCR")
+st.title("Receipt Data Extractor with Cloud OCR")
 
 # File Uploader
 uploaded_files = st.file_uploader("Upload PDF receipts", type=["pdf"], accept_multiple_files=True)
 
 def extract_text_from_pdf(uploaded_file):
-    """Extract text from an uploaded PDF receipt using pdfplumber and Tesseract OCR if needed."""
+    """Extract text from an uploaded PDF receipt using pdfplumber and OCR if needed."""
     try:
         with pdfplumber.open(uploaded_file) as pdf:
             extracted_text = []
@@ -23,10 +24,10 @@ def extract_text_from_pdf(uploaded_file):
                 text = page.extract_text()
                 if text:
                     extracted_text.append(text)
-            
+
             if not extracted_text:  # If no text found, use OCR
                 images = convert_from_bytes(uploaded_file.read())
-                extracted_text = [pytesseract.image_to_string(img, config='--psm 6') for img in images]
+                extracted_text = [tesserocr.image_to_text(img) for img in images]
                 
         return "\n".join(extracted_text)
     except Exception as e:
@@ -41,14 +42,15 @@ def extract_vendor(lines):
 
 def extract_amount(lines):
     """Extract total amount from receipt text using keyword detection."""
-    keywords = ["total amount due", "total", "visa ending", "amount due", "grand total", "balance due", "subtotal", "amount charged", "payment amount", "final total"]
+    keywords = ["total amount due", "total", "visa ending", "amount due", "grand total", "balance due", 
+                "subtotal", "amount charged", "payment amount", "final total"]
     for i, line in enumerate(lines):
         if any(keyword in line.lower() for keyword in keywords):
-            matches = re.findall(r'\$?([0-9,]+\.[0-9]{2})', line)
+            matches = re.findall(r'\$?([0-9,]+\\.[0-9]{2})', line)
             if matches:
                 return float(matches[-1].replace(",", ""))
             elif i + 1 < len(lines):
-                matches = re.findall(r'\$?([0-9,]+\.[0-9]{2})', lines[i + 1])
+                matches = re.findall(r'\$?([0-9,]+\\.[0-9]{2})', lines[i + 1])
                 if matches:
                     return float(matches[-1].replace(",", ""))
     return None
