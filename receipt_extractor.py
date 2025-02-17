@@ -18,13 +18,17 @@ def extract_text_from_pdf(uploaded_file):
     """Extract text from an uploaded PDF receipt using pdfplumber and Tesseract OCR if needed."""
     try:
         with pdfplumber.open(uploaded_file) as pdf:
-            text = "\n".join(page.extract_text() or "" for page in pdf.pages)
+            extracted_text = []
+            for page in pdf.pages:
+                text = page.extract_text()
+                if text:
+                    extracted_text.append(text)
             
-            if not text.strip():  # If no text found, use Tesseract OCR
+            if not extracted_text:  # If no text found, use OCR
                 images = convert_from_bytes(uploaded_file.read())
-                text = "\n".join(pytesseract.image_to_string(img) for img in images)
+                extracted_text = [pytesseract.image_to_string(img, config='--psm 6') for img in images]
                 
-        return text
+        return "\n".join(extracted_text)
     except Exception as e:
         return ""
 
@@ -40,11 +44,11 @@ def extract_amount(lines):
     keywords = ["total amount due", "total", "visa ending", "amount due", "grand total", "balance due", "subtotal", "amount charged", "payment amount", "final total"]
     for i, line in enumerate(lines):
         if any(keyword in line.lower() for keyword in keywords):
-            matches = re.findall(r'\$?([0-9,]+\\.[0-9]{2})', line)
+            matches = re.findall(r'\$?([0-9,]+\.[0-9]{2})', line)
             if matches:
                 return float(matches[-1].replace(",", ""))
             elif i + 1 < len(lines):
-                matches = re.findall(r'\$?([0-9,]+\\.[0-9]{2})', lines[i + 1])
+                matches = re.findall(r'\$?([0-9,]+\.[0-9]{2})', lines[i + 1])
                 if matches:
                     return float(matches[-1].replace(",", ""))
     return None
