@@ -3,29 +3,26 @@ import pdfplumber
 import pandas as pd
 import re
 import streamlit as st
-import easyocr
+import pytesseract
 from pdf2image import convert_from_bytes
 from PIL import Image
 from dateutil import parser
 
-# Initialize EasyOCR Reader
-reader = easyocr.Reader(['en'])
-
 # Streamlit App Title
-st.title("Receipt Data Extractor with OCR")
+st.title("Receipt Data Extractor with Tesseract OCR")
 
 # File Uploader
 uploaded_files = st.file_uploader("Upload PDF receipts", type=["pdf"], accept_multiple_files=True)
 
 def extract_text_from_pdf(uploaded_file):
-    """Extract text from an uploaded PDF receipt using pdfplumber and EasyOCR if needed."""
+    """Extract text from an uploaded PDF receipt using pdfplumber and Tesseract OCR if needed."""
     try:
         with pdfplumber.open(uploaded_file) as pdf:
             text = "\n".join(page.extract_text() or "" for page in pdf.pages)
             
-            if not text.strip():  # If no text found, use EasyOCR
+            if not text.strip():  # If no text found, use Tesseract OCR
                 images = convert_from_bytes(uploaded_file.read())
-                text = "\n".join(" ".join(word[1] for word in reader.readtext(img)) for img in images)
+                text = "\n".join(pytesseract.image_to_string(img) for img in images)
                 
         return text
     except Exception as e:
