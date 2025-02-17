@@ -2,19 +2,33 @@ import os
 import pdfplumber
 import pandas as pd
 import re
+import streamlit as st
+from paddleocr import PaddleOCR
+from pdf2image import convert_from_bytes
+from PIL import Image
 from dateutil import parser
 
-# Paths
-receipts_folder = r"C:\Users\jschwab\Desktop\Receipts for Practice"
+# Initialize PaddleOCR
+ocr = PaddleOCR(use_angle_cls=True, lang="en")
 
-def extract_text_from_pdf(pdf_path):
-    """Extract text from a PDF receipt."""
+# Streamlit App Title
+st.title("Receipt Data Extractor with OCR")
+
+# File Uploader
+uploaded_files = st.file_uploader("Upload PDF receipts", type=["pdf"], accept_multiple_files=True)
+
+def extract_text_from_pdf(uploaded_file):
+    """Extract text from an uploaded PDF receipt using pdfplumber and PaddleOCR if needed."""
     try:
-        with pdfplumber.open(pdf_path) as pdf:
+        with pdfplumber.open(uploaded_file) as pdf:
             text = "\n".join(page.extract_text() or "" for page in pdf.pages)
+            
+            if not text.strip():  # If no text found, use PaddleOCR
+                images = convert_from_bytes(uploaded_file.read())
+                text = "\n".join(" ".join(word_info[1][0] for line in ocr.ocr(img, cls=True) for word_info in line) for img in images)
+                
         return text
     except Exception as e:
-        print(f"Error processing {pdf_path}: {e}")
         return ""
 
 def extract_vendor(lines):
@@ -59,27 +73,21 @@ def parse_receipt_data(text):
     return {"Date": date, "Vendor": vendor, "Total": amount}
 
 def main():
-    """Process receipts and display extracted data as a table."""
+    """Process uploaded receipts and display extracted data in Streamlit."""
     receipts_data = []
     
-    pdf_files = [f for f in os.listdir(receipts_folder) if f.lower().endswith(".pdf")]
-    if not pdf_files:
-        print("No PDF files found in the specified folder.")
-        return
-    
-    for filename in pdf_files:
-        file_path = os.path.join(receipts_folder, filename)
-        if os.path.isfile(file_path):  # Ensure it is a file
-            text = extract_text_from_pdf(file_path)
+    if uploaded_files:
+        for uploaded_file in uploaded_files:
+            text = extract_text_from_pdf(uploaded_file)
             if text.strip():
                 receipt_data = parse_receipt_data(text)
                 receipts_data.append(receipt_data)
     
     if receipts_data:
         df = pd.DataFrame(receipts_data, columns=["Date", "Vendor", "Total"])
-        print(df.to_string(index=False))  # Print table without unnecessary data
+        st.write(df)  # Display table in Streamlit
     else:
-        print("No data extracted from receipts.")
+        st.write("No data extracted from receipts.")
 
 if __name__ == "__main__":
     main()
